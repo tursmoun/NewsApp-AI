@@ -11,8 +11,24 @@ public class CmsService {
 
   public record Page(List<Map<String, Object>> items, long total) {}
 
-  public record Query(int page, int perPage, String q, String status, String sort, String order) {
+  public record Query(
+    int page,
+    int perPage,
+    String q,
+    String status,
+    String sort,
+    String order,
+    String aiGroup
+  ) {
+    public Query(int page, int perPage, String q, String status, String sort, String order) {
+      this(page, perPage, q, status, sort, order, "");
+    }
+
     public Query {
+      aiGroup = aiGroup == null ? "" : aiGroup.trim();
+      if (
+        !Set.of("", "normal", "doubtful", "suspicious", "waiting", "error").contains(aiGroup)
+      ) throw ApiException.bad("Неизвестная группа проверки");
       if (page < 1 || page > 1000000 || perPage < 1 || perPage > 100) throw ApiException.bad(
         "Проверьте номер страницы и размер списка (1–100)"
       );
@@ -49,8 +65,8 @@ public class CmsService {
   private Spec spec(String resource) {
     return switch (resource) {
       case "news" -> new Spec(
-        "n.*,r.id AS revision_id,r.title,r.body,r.category,r.source_url,r.status,r.rejection_reason,r.submitted_at,r.main_status,r.main_rejection_reason,u.display_name AS author,c.official,c.owner_id",
-        "FROM news n JOIN news_revisions r ON r.id=n.latest_revision_id JOIN app_users u ON u.id=n.author_id LEFT JOIN communities c ON c.id=n.community_id",
+        "ai.error_code AS ai_error_code,ai.attempts AS ai_attempts,ai.retry_at AS ai_retry_at,ai.state AS ai_state,ai.risk_group AS ai_group,ai.result AS ai_result,ai.model AS ai_model,ai.checked_at AS ai_checked_at,n.*,r.id AS revision_id,r.title,r.body,r.category,r.source_url,r.status,r.rejection_reason,r.submitted_at,r.main_status,r.main_rejection_reason,u.display_name AS author,c.official,c.owner_id",
+        "FROM news n JOIN news_revisions r ON r.id=n.latest_revision_id JOIN app_users u ON u.id=n.author_id LEFT JOIN communities c ON c.id=n.community_id LEFT JOIN ai_revision_reviews ai ON ai.revision_id=r.id",
         "n.id",
         Map.of(
           "id",
@@ -67,6 +83,8 @@ public class CmsService {
           "r.submitted_at",
           "views",
           "n.views",
+          "aiPriority",
+          "CASE WHEN ai.risk_group='suspicious' THEN 4 WHEN ai.state='error' THEN 3 WHEN ai.state IS NULL OR ai.state='waiting' THEN 2 WHEN ai.risk_group='doubtful' THEN 1 ELSE 0 END",
           "author",
           "u.display_name"
         ),
@@ -182,6 +200,14 @@ public class CmsService {
       }
       where.append(")");
     }
+    if (resource.equals("news") && !query.aiGroup().isEmpty()) {
+      String group = query.aiGroup();
+      if (group.equals("waiting")) where.append(" AND (ai.state IS NULL OR ai.state='waiting')");
+      else {
+        where.append(group.equals("error") ? " AND ai.state=?" : " AND ai.risk_group=?");
+        args.add(group);
+      }
+    }
     String status = query.status();
     if (status.isEmpty() || status.equals("all")) return where.toString();
     switch (resource) {
@@ -293,6 +319,26 @@ public class CmsService {
         );
         result.put("createdAt", instant(row.get("created_at")));
         result.put("submittedAt", instant(row.get("submitted_at")));
+        result.put("aiState", Objects.toString(row.get("ai_state"), "waiting"));
+        result.put("aiGroup", row.get("ai_group"));
+        result.put("aiErrorCode", row.get("ai_error_code"));
+        result.put("aiAttempts", row.get("ai_attempts"));
+        result.put("aiRetryAt", instant(row.get("ai_retry_at")));
+        result.put("aiModel", row.get("ai_model"));
+        result.put("aiCheckedAt", instant(row.get("ai_checked_at")));
+        if (row.get("ai_result") != null) {
+          try {
+            result.put(
+              "aiReview",
+              new com.fasterxml.jackson.databind.ObjectMapper().readTree(
+                row.get("ai_result").toString()
+              )
+            );
+          } catch (Exception ignored) {
+            result.put("aiState", "error");
+            result.put("aiGroup", null);
+          }
+        }
       }
       case "communities" -> {
         for (String key : List.of(

@@ -16,6 +16,8 @@ if (!(Test-Path -LiteralPath $configFile)) {
     [IO.File]::WriteAllText((Join-Path $localRoot 'accounts.txt'),$accountText,(New-Object Text.UTF8Encoding $false))
 }
 $config = Get-Content -LiteralPath $configFile -Raw | ConvertFrom-Json
+. (Join-Path $PSScriptRoot 'ai-secret.ps1')
+Import-NewsAppAiSecret -LocalDirectory $localRoot
 $javaCandidates = @()
 if ($env:JAVA_HOME) { $javaCandidates += $env:JAVA_HOME }
 $javaCommand = Get-Command java.exe -ErrorAction SilentlyContinue

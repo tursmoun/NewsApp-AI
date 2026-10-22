@@ -23,7 +23,7 @@ export function cmsListQuery(params: Pick<GetListParams, 'pagination' | 'sort' |
     sort: params.sort?.field || 'createdAt',
     order: params.sort?.order || 'DESC',
   });
-  for (const key of ['q', 'status', 'blocked', 'role']) {
+  for (const key of ['q', 'status', 'blocked', 'role', 'aiGroup']) {
     const value: unknown = params.filter?.[key];
     if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
   }

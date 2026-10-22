@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { Alert, Box, Button, Stack, Typography } from '@mui/material';
+import { AiBadge, AiDetails, AiSettings, aiGroups } from './AiReview';
 import { Check, Plus, X } from 'lucide-react';
 import {
   Datagrid,
@@ -21,6 +23,7 @@ import {
   Toolbar,
   TopToolbar,
   useRecordContext,
+  useRefresh,
 } from 'react-admin';
 import { categories } from '../data/categories';
 import { validateNewsDraft } from '../domain/news-validation';
@@ -45,13 +48,27 @@ const statuses = [
 ];
 
 export function NewsList() {
+  const refresh = useRefresh();
+  useEffect(() => {
+    const timer = window.setInterval(refresh, 10000);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
   return (
     <List
       title="Публикации"
       exporter={false}
       perPage={25}
-      sort={{ field: 'submittedAt', order: 'DESC' }}
+      sort={{ field: 'aiPriority', order: 'DESC' }}
+      filterDefaultValues={{ status: 'pending' }}
       filters={[
+        <SelectInput
+          source="aiGroup"
+          label="Оценка нейросети"
+          choices={aiGroups}
+          alwaysOn
+          key="aiGroup"
+          emptyText="Все группы"
+        />,
         <SearchInput source="q" placeholder="Заголовок или текст" alwaysOn key="q" />,
         <SelectInput
           source="status"
@@ -64,6 +81,7 @@ export function NewsList() {
       ]}
       actions={
         <TopToolbar>
+          <AiSettings />
           <Button component="a" href="/create" startIcon={<Plus size={18} />}>
             Предложить новость
           </Button>
@@ -82,6 +100,11 @@ export function NewsList() {
         sx={{ '& .column-title': { maxWidth: 380, overflowWrap: 'anywhere' } }}
       >
         <TextField source="title" label="Новость" />
+        <FunctionField
+          source="aiPriority"
+          label="Приоритет проверки"
+          render={(record: CmsNews) => <AiBadge record={record} />}
+        />
         <FunctionField
           source="status"
           label="Состояние"
@@ -206,6 +229,7 @@ export function NewsShow() {
       <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1100 }}>
         <NewsStatus />
         <HiddenNotice />
+        <AiDetails />
         <ModerationActions />
         <SimpleShowLayout sx={{ p: 0 }}>
           <TextField

@@ -31,12 +31,13 @@ public class CmsController {
     @RequestParam(defaultValue = "") String status,
     @RequestParam(defaultValue = "") String sort,
     @RequestParam(defaultValue = "DESC") String order,
+    @RequestParam(defaultValue = "") String aiGroup,
     Authentication auth
   ) {
     return cms.list(
       resource,
       accounts.require(auth),
-      new CmsService.Query(page, perPage, q, status, sort, order)
+      new CmsService.Query(page, perPage, q, status, sort, order, aiGroup)
     );
   }
 

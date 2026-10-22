@@ -1,6 +1,20 @@
 import type { Community, Post } from '../domain/types';
 
 export interface CmsNews extends Post {
+  aiState?: 'waiting' | 'done' | 'error';
+  aiGroup?: 'normal' | 'doubtful' | 'suspicious';
+  aiModel?: string;
+  aiErrorCode?: string;
+  aiAttempts?: number;
+  aiRetryAt?: string;
+  aiCheckedAt?: string;
+  aiReview?: {
+    newsworthiness: 'fits' | 'unclear' | 'off_topic';
+    violationRisk: 'low' | 'uncertain' | 'high';
+    reasons: string[];
+    evidence: string[];
+    mediaUnchecked: boolean;
+  };
   deleted: boolean;
   mediaIds: string[];
   createdAt: string;
